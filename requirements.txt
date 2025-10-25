@@ -2,3 +2,4 @@ Flask>=2.0
 pywebview>=4.0   # optional if you used webview; not required for browser approach
 tk
 pyinstaller
+flask

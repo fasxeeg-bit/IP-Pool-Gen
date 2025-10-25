@@ -23,7 +23,10 @@ jobs:
 
       - name: Build EXE (include templates & static)
         shell: cmd
-        run: pyinstaller --onefile --noconsole --add-data "templates;templates" --add-data "static;static" app.py
+        run: |
+          echo Building EXE...
+          pyinstaller --onefile --noconsole --add-data "templates;templates" --add-data "static;static" app.py
+          echo Build done.
 
       - name: Show dist folder
         run: dir dist

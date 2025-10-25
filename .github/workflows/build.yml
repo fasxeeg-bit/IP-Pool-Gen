@@ -1,8 +1,9 @@
-name: Build IP Pool Generator Apps
+name: Build IP Pool Generator EXEs
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -10,33 +11,42 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install flask pyinstaller
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flask pyinstaller
 
-      - name: Build Flask Web App EXE
-        run: |
-          echo Building Flask Web Server...
-          pyinstaller --onefile --noconsole --add-data "templates;templates" --add-data "IP_pool_generator.py;." --name "IP_Pool_WebApp" app.py
+    # ✅ Build Flask Web App (web GUI)
+    - name: Build Flask Web App EXE
+      shell: pwsh
+      run: |
+        echo Building Flask Web Server...
+        pyinstaller --onefile --noconsole `
+          --add-data "templates;templates" `
+          --add-data "ip_pool_generator_desktop.py;." `
+          --name "IP_Pool_WebApp" app.py
 
-      - name: Build Tkinter Desktop EXE
-        run: |
-          echo Building Tkinter Desktop App...
-          pyinstaller --onefile --noconsole --name "IP_Pool_Desktop" IP_Pool_Generator.py
+    # ✅ Build Tkinter Desktop App (desktop GUI)
+    - name: Build Tkinter Desktop EXE
+      shell: pwsh
+      run: |
+        echo Building Tkinter Desktop App...
+        pyinstaller --onefile --noconsole `
+          --name "IP_Pool_Desktop" ip_pool_generator_desktop.py
 
-      - name: Upload Built EXEs
-        uses: actions/upload-artifact@v4
-        with:
-          name: IP_Pool_Generator_Apps
-          path: |
-            dist/IP_Pool_WebApp.exe
-            dist/IP_Pool_Desktop.exe
+    # ✅ Upload Both EXEs
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: IP_Pool_EXEs
+        path: |
+          dist/IP_Pool_WebApp.exe
+          dist/IP_Pool_Desktop.exe

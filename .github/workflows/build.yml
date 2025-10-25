@@ -8,36 +8,36 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      - name: Set up job
+        run: echo "Starting build process..."
+
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
-      - name: Show repo files (debug)
-        run: dir
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt || echo "no requirements.txt"
-          pip install pyinstaller
+          python -m pip install --upgrade pip
+          pip install pyinstaller flask
 
       - name: Build EXE (include templates & static)
         run: |
           echo "Building EXE..."
-          pyinstaller --onefile --noconsole ^
-            --add-data "templates;templates" ^
-            --add-data "static;static" ^
-            app.py
+          pyinstaller --onefile --noconsole --add-data "templates;templates" --add-data "static;static" app.py
           echo "Build done."
 
       - name: Show dist folder (debug)
-        run: dir dist || echo "dist missing"
+        run: dir dist
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
         with:
           name: IPPoolApp
-          path: dist\app.exe
+          path: dist/*.exe
+
+      - name: Complete job
+        run: echo "✅ Build completed successfully!"

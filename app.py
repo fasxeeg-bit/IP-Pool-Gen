@@ -1,113 +1,80 @@
-from flask import Flask, render_template_string, request, send_file
-import io
+from flask import Flask, render_template, request, send_file
 import csv
+import io
 import ipaddress
+import webbrowser
+import threading
 
 app = Flask(__name__)
 
-# Inline HTML (same UI as Replit)
-HTML = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>IP Pool Generator - SF - NOC</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f6fa; }
-        h1 { color: #2f3640; }
-        input, button { padding: 10px; margin: 5px 0; }
-        button { cursor: pointer; background: #40739e; color: white; border: none; border-radius: 5px; }
-        button:hover { background: #273c75; }
-        textarea { width: 100%; height: 250px; margin-top: 15px; }
-    </style>
-</head>
-<body>
-    <h1>IP Pool Generator - SF - NOC</h1>
-    <form method="POST" action="/generate">
-        <label>IP/Subnet:</label><br>
-        <input type="text" name="ip_subnet" value="192.168.1.0/22" required><br>
-        <label>Gateway:</label><br>
-        <input type="text" name="gateway" value="192.168.1.1" required><br>
-        <button type="submit">Generate</button>
-    </form>
-
-    {% if result %}
-    <h3>Generated IPs ({{ count }})</h3>
-    <form method="POST" action="/export">
-        <input type="hidden" name="ip_subnet" value="{{ ip_subnet }}">
-        <input type="hidden" name="gateway" value="{{ gateway }}">
-        <textarea readonly>{{ result }}</textarea><br>
-        <button type="submit">Export CSV</button>
-    </form>
-    {% endif %}
-</body>
-</html>
-"""
-
-def cidr_to_netmask(cidr):
-    """Convert CIDR (e.g. /22) to subnet mask (255.255.252.0)."""
+def generate_ip_pool(ip_subnet, gateway):
     try:
-        network = ipaddress.ip_network(f"0.0.0.0/{cidr}", strict=False)
-        return str(network.netmask)
-    except Exception:
+        network = ipaddress.ip_network(ip_subnet, strict=False)
+        ips = [str(ip) for ip in network.hosts()]
+        if gateway in ips:
+            ips.remove(gateway)
+        return ips
+    except Exception as e:
+        raise ValueError(f"Invalid input: {e}")
+
+def subnet_to_mask(cidr):
+    try:
+        return str(ipaddress.IPv4Network(f"0.0.0.0/{cidr}", strict=False).netmask)
+    except:
         return None
 
-@app.route('/', methods=['GET'])
+@app.route("/", methods=["GET", "POST"])
 def index():
-    return render_template_string(HTML)
+    if request.method == "POST":
+        ip_subnet = request.form.get("ip_subnet").strip()
+        gateway = request.form.get("gateway").strip()
 
-@app.route('/generate', methods=['POST'])
-def generate():
-    ip_subnet = request.form['ip_subnet'].strip()
-    gateway = request.form['gateway'].strip()
+        try:
+            ips = generate_ip_pool(ip_subnet, gateway)
+            total_ips = len(ips)
+            return render_template(
+                "index.html",
+                ips=ips,
+                total_ips=total_ips,
+                ip_subnet=ip_subnet,
+                gateway=gateway,
+            )
+        except Exception as e:
+            return render_template("index.html", error=str(e))
 
+    return render_template("index.html")
+
+@app.route("/download")
+def download_csv():
+    ip_subnet = request.args.get("ip_subnet")
+    gateway = request.args.get("gateway")
     try:
         network = ipaddress.ip_network(ip_subnet, strict=False)
-        all_hosts = list(network.hosts())
-
-        # Skip gateway (first usable IP)
-        usable_ips = all_hosts[1:] if len(all_hosts) > 1 else []
-
-        ip_list = [str(ip) for ip in usable_ips]
-        result = "\n".join(ip_list)
-
-        return render_template_string(
-            HTML,
-            result=result,
-            count=len(ip_list),
-            ip_subnet=ip_subnet,
-            gateway=gateway
-        )
-    except Exception as e:
-        return f"<h3 style='color:red;'>Error: {str(e)}</h3>"
-
-@app.route('/export', methods=['POST'])
-def export():
-    ip_subnet = request.form['ip_subnet'].strip()
-    gateway = request.form['gateway'].strip()
-
-    try:
-        network = ipaddress.ip_network(ip_subnet, strict=False)
-        all_hosts = list(network.hosts())
-        usable_ips = all_hosts[1:] if len(all_hosts) > 1 else []
-
-        subnet_mask = cidr_to_netmask(ip_subnet.split('/')[-1])
+        cidr = ip_subnet.split("/")[1]
+        subnet_mask = subnet_to_mask(cidr)
+        ips = [str(ip) for ip in network.hosts()]
+        if gateway in ips:
+            ips.remove(gateway)
 
         output = io.StringIO()
-        writer = csv.writer(output, lineterminator='\n')
-
-        # Write IP, Gateway, Subnet Mask (no header)
-        for ip in usable_ips:
-            writer.writerow([str(ip), gateway, subnet_mask])
-
+        writer = csv.writer(output, lineterminator="\n")
+        for ip in ips:
+            writer.writerow([ip, gateway, subnet_mask])
         output.seek(0)
+
         return send_file(
-            io.BytesIO(output.getvalue().encode()),
-            mimetype='text/csv',
+            io.BytesIO(output.getvalue().encode("utf-8")),
             as_attachment=True,
-            download_name='ip_pool.csv'
+            download_name="ip_pool.csv",
+            mimetype="text/csv",
         )
     except Exception as e:
-        return f"<h3 style='color:red;'>Error exporting CSV: {str(e)}</h3>"
+        return f"Error creating CSV: {str(e)}", 400
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+def open_browser():
+    """Automatically open browser after Flask starts"""
+    webbrowser.open("http://127.0.0.1:5000")
+
+if __name__ == "__main__":
+    threading.Timer(1, open_browser).start()
+    app.run(host="127.0.0.1", port=5000, debug=False)

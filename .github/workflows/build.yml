@@ -25,6 +25,7 @@ jobs:
         run: |
           echo Building EXE...
           pyinstaller --onefile --noconsole app.py
+          echo Build done.
 
       - name: Show dist folder (debug)
         run: dir dist

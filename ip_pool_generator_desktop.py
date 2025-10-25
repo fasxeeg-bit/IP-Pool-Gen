@@ -208,7 +208,7 @@ class IPPoolGenerator:
             messagebox.showerror("Error", f"An error occurred: {str(e)}")
             self.status_label.config(text="Error occurred", foreground='red')
 
-       def export_csv(self):
+           def export_csv(self):
         if not self.generated_ips:
             messagebox.showwarning(
                 "No Data", "No IPs to export. Please generate IPs first.")
@@ -246,6 +246,7 @@ class IPPoolGenerator:
                                      f"Failed to export CSV: {str(e)}")
                 self.status_label.config(text="Export failed",
                                          foreground='red')
+
 
 
     def clear_results(self):

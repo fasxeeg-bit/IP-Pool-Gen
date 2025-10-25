@@ -27,7 +27,7 @@ class IPPoolGenerator:
         main_frame.rowconfigure(4, weight=1)
 
         title_label = ttk.Label(main_frame,
-                                text="IP Pool Generator - FasXeeH",
+                                text="IP Pool Generator - SF - NOC",
                                 font=('Arial', 16, 'bold'))
         title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
 
@@ -208,37 +208,45 @@ class IPPoolGenerator:
             messagebox.showerror("Error", f"An error occurred: {str(e)}")
             self.status_label.config(text="Error occurred", foreground='red')
 
-    def export_csv(self):
+       def export_csv(self):
         if not self.generated_ips:
             messagebox.showwarning(
                 "No Data", "No IPs to export. Please generate IPs first.")
             return
 
-        file_path = filedialog.asksaveasfilename(defaultextension=".csv",
-                                                 filetypes=[
-                                                     ("CSV files", "*.csv"),
-                                                     ("All files", "*.*")
-                                                 ],
-                                                 initialfile="ip_pool.csv")
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            initialfile="ip_pool.csv"
+        )
 
         if file_path:
             try:
+                # Extract subnet mask from IP/Subnet entry
+                ip_subnet = self.ip_subnet_entry.get().strip()
+                _, subnet = ip_subnet.split('/')
+                subnet_mask = subnet.strip()
+
+                # Skip first usable IP (gateway)
+                ip_list = self.generated_ips[1:] if len(self.generated_ips) > 1 else []
+
                 with open(file_path, 'w', newline='') as csvfile:
                     writer = csv.writer(csvfile)
-                    for ip in self.generated_ips:
-                        writer.writerow([ip])
+                    for ip in ip_list:
+                        writer.writerow([ip, self.gateway, subnet_mask])
 
                 messagebox.showinfo(
                     "Export Successful",
                     f"IP pool exported successfully to:\n{file_path}")
                 self.status_label.config(
-                    text=f"Exported {len(self.generated_ips)} IPs to CSV",
+                    text=f"Exported {len(ip_list)} IPs to CSV",
                     foreground='green')
             except Exception as e:
                 messagebox.showerror("Export Error",
                                      f"Failed to export CSV: {str(e)}")
                 self.status_label.config(text="Export failed",
                                          foreground='red')
+
 
     def clear_results(self):
         self.result_text.delete('1.0', tk.END)

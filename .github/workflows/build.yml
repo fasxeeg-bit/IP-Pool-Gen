@@ -18,8 +18,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          pip install pyinstaller
+          pip install -r requirements.txt || echo "no requirements.txt found"
+          pip install pyinstaller flask
 
       - name: Build EXE
         run: |
@@ -29,4 +29,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: IPPoolApp
-          path: dist/app_main.exe
+          path: dist/app.exe

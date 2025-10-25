@@ -16,16 +16,28 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Show repo files (debug)
+        run: dir
+
       - name: Install dependencies
         run: |
-          pip install flask pyinstaller
+          pip install -r requirements.txt || echo "no requirements.txt"
+          pip install pyinstaller
 
-      - name: Build EXE
+      - name: Build EXE (include templates & static)
         run: |
-          pyinstaller --onefile --noconsole app.py
+          echo "Building EXE..."
+          pyinstaller --onefile --noconsole ^
+            --add-data "templates;templates" ^
+            --add-data "static;static" ^
+            app.py
+          echo "Build done."
+
+      - name: Show dist folder (debug)
+        run: dir dist || echo "dist missing"
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
         with:
           name: IPPoolApp
-          path: dist/app.exe
+          path: dist\app.exe

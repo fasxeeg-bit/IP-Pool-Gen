@@ -1,225 +1,113 @@
-import tkinter as tk
-from tkinter import ttk, scrolledtext, filedialog, messagebox
+from flask import Flask, render_template_string, request, send_file
+import io
 import csv
-import re
+import ipaddress
 
+app = Flask(__name__)
 
-class IPPoolGenerator:
+# Inline HTML (same UI as Replit)
+HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>IP Pool Generator - SF - NOC</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f6fa; }
+        h1 { color: #2f3640; }
+        input, button { padding: 10px; margin: 5px 0; }
+        button { cursor: pointer; background: #40739e; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #273c75; }
+        textarea { width: 100%; height: 250px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <h1>IP Pool Generator - SF - NOC</h1>
+    <form method="POST" action="/generate">
+        <label>IP/Subnet:</label><br>
+        <input type="text" name="ip_subnet" value="192.168.1.0/22" required><br>
+        <label>Gateway:</label><br>
+        <input type="text" name="gateway" value="192.168.1.1" required><br>
+        <button type="submit">Generate</button>
+    </form>
 
-    def __init__(self, root):
-        self.root = root
-        self.root.title("IP Pool Generator")
-        self.root.geometry("800x600")
-        self.root.resizable(True, True)
+    {% if result %}
+    <h3>Generated IPs ({{ count }})</h3>
+    <form method="POST" action="/export">
+        <input type="hidden" name="ip_subnet" value="{{ ip_subnet }}">
+        <input type="hidden" name="gateway" value="{{ gateway }}">
+        <textarea readonly>{{ result }}</textarea><br>
+        <button type="submit">Export CSV</button>
+    </form>
+    {% endif %}
+</body>
+</html>
+"""
 
-        self.generated_ips = []
-        self.gateway = ""
+def cidr_to_netmask(cidr):
+    """Convert CIDR (e.g. /22) to subnet mask (255.255.252.0)."""
+    try:
+        network = ipaddress.ip_network(f"0.0.0.0/{cidr}", strict=False)
+        return str(network.netmask)
+    except Exception:
+        return None
 
-        self.create_widgets()
+@app.route('/', methods=['GET'])
+def index():
+    return render_template_string(HTML)
 
-    def create_widgets(self):
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky="nsew")
+@app.route('/generate', methods=['POST'])
+def generate():
+    ip_subnet = request.form['ip_subnet'].strip()
+    gateway = request.form['gateway'].strip()
 
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
-        main_frame.rowconfigure(4, weight=1)
+    try:
+        network = ipaddress.ip_network(ip_subnet, strict=False)
+        all_hosts = list(network.hosts())
 
-        title_label = ttk.Label(
-            main_frame,
-            text="IP Pool Generator - SF - NOC",
-            font=('Arial', 16, 'bold')
+        # Skip gateway (first usable IP)
+        usable_ips = all_hosts[1:] if len(all_hosts) > 1 else []
+
+        ip_list = [str(ip) for ip in usable_ips]
+        result = "\n".join(ip_list)
+
+        return render_template_string(
+            HTML,
+            result=result,
+            count=len(ip_list),
+            ip_subnet=ip_subnet,
+            gateway=gateway
         )
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
+    except Exception as e:
+        return f"<h3 style='color:red;'>Error: {str(e)}</h3>"
 
-        ttk.Label(main_frame, text="IP/Subnet:", font=('Arial', 10)).grid(
-            row=1, column=0, sticky=tk.W, pady=5
+@app.route('/export', methods=['POST'])
+def export():
+    ip_subnet = request.form['ip_subnet'].strip()
+    gateway = request.form['gateway'].strip()
+
+    try:
+        network = ipaddress.ip_network(ip_subnet, strict=False)
+        all_hosts = list(network.hosts())
+        usable_ips = all_hosts[1:] if len(all_hosts) > 1 else []
+
+        subnet_mask = cidr_to_netmask(ip_subnet.split('/')[-1])
+
+        output = io.StringIO()
+        writer = csv.writer(output, lineterminator='\n')
+
+        # Write IP, Gateway, Subnet Mask (no header)
+        for ip in usable_ips:
+            writer.writerow([str(ip), gateway, subnet_mask])
+
+        output.seek(0)
+        return send_file(
+            io.BytesIO(output.getvalue().encode()),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name='ip_pool.csv'
         )
-        self.ip_subnet_entry = ttk.Entry(main_frame, width=30, font=('Arial', 10))
-        self.ip_subnet_entry.grid(row=1, column=1, sticky="we", pady=5, padx=(5, 10))
-        self.ip_subnet_entry.insert(0, "192.168.1.0/22")
+    except Exception as e:
+        return f"<h3 style='color:red;'>Error exporting CSV: {str(e)}</h3>"
 
-        ttk.Label(main_frame, text="Gateway:", font=('Arial', 10)).grid(
-            row=2, column=0, sticky=tk.W, pady=5
-        )
-        self.gateway_entry = ttk.Entry(main_frame, width=30, font=('Arial', 10))
-        self.gateway_entry.grid(row=2, column=1, sticky="we", pady=5, padx=(5, 10))
-        self.gateway_entry.insert(0, "192.168.1.1")
-
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=3, column=0, columnspan=3, pady=10)
-
-        self.generate_btn = ttk.Button(
-            button_frame, text="Generate IPs", command=self.generate_ips
-        )
-        self.generate_btn.pack(side=tk.LEFT, padx=5)
-
-        self.export_btn = ttk.Button(
-            button_frame, text="Export to CSV", command=self.export_csv, state=tk.DISABLED
-        )
-        self.export_btn.pack(side=tk.LEFT, padx=5)
-
-        self.clear_btn = ttk.Button(
-            button_frame, text="Clear", command=self.clear_results
-        )
-        self.clear_btn.pack(side=tk.LEFT, padx=5)
-
-        result_frame = ttk.LabelFrame(main_frame, text="Generated IP Addresses", padding="5")
-        result_frame.grid(row=4, column=0, columnspan=3, sticky="nsew", pady=(10, 0))
-        result_frame.columnconfigure(0, weight=1)
-        result_frame.rowconfigure(1, weight=1)
-
-        self.info_label = ttk.Label(result_frame, text="", font=('Arial', 9, 'italic'))
-        self.info_label.grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
-
-        self.result_text = scrolledtext.ScrolledText(
-            result_frame, wrap=tk.WORD, width=70, height=20, font=('Courier', 9)
-        )
-        self.result_text.grid(row=1, column=0, sticky="nsew")
-
-        status_frame = ttk.Frame(main_frame)
-        status_frame.grid(row=5, column=0, columnspan=3, sticky="we", pady=(5, 0))
-
-        self.status_label = ttk.Label(
-            status_frame, text="Ready", font=('Arial', 9), foreground='green'
-        )
-        self.status_label.pack(side=tk.LEFT)
-
-    def validate_ip(self, ip):
-        pattern = r'^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$'
-        match = re.match(pattern, ip)
-        if not match:
-            return False
-        return all(0 <= int(part) <= 255 for part in match.groups())
-
-    def validate_subnet(self, subnet):
-        try:
-            subnet_int = int(subnet)
-            return 8 <= subnet_int <= 30
-        except ValueError:
-            return False
-
-    def cidr_to_mask(self, cidr):
-        """Convert CIDR (e.g., /22) to subnet mask (e.g., 255.255.252.0)"""
-        mask = (0xffffffff >> (32 - int(cidr))) << (32 - int(cidr))
-        return f"{(mask >> 24) & 255}.{(mask >> 16) & 255}.{(mask >> 8) & 255}.{mask & 255}"
-
-    def generate_ip_pool(self, ip_subnet):
-        try:
-            ip, subnet = ip_subnet.split('/')
-            subnet = int(subnet)
-
-            parts = list(map(int, ip.split('.')))
-            ip_int = (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3]
-
-            total = 2 ** (32 - subnet)
-            ips = []
-            for i in range(1, total - 1):
-                v = ip_int + i
-                generated_ip = f"{(v >> 24) & 255}.{(v >> 16) & 255}.{(v >> 8) & 255}.{v & 255}"
-                ips.append(generated_ip)
-            return ips
-        except Exception as e:
-            raise ValueError(f"Error generating IPs: {str(e)}")
-
-    def generate_ips(self):
-        ip_subnet = self.ip_subnet_entry.get().strip()
-        gateway = self.gateway_entry.get().strip()
-
-        if not ip_subnet or '/' not in ip_subnet:
-            messagebox.showerror("Input Error", "Please enter IP/Subnet in format: 192.168.1.0/22")
-            return
-
-        try:
-            ip, subnet = ip_subnet.split('/')
-
-            if not self.validate_ip(ip):
-                messagebox.showerror("Input Error", "Invalid IP address format.")
-                return
-
-            if not self.validate_subnet(subnet):
-                messagebox.showerror("Input Error", "Subnet must be between 8 and 30")
-                return
-
-            if gateway and not self.validate_ip(gateway):
-                messagebox.showerror("Input Error", "Invalid Gateway IP address format")
-                return
-
-            self.status_label.config(text="Generating IPs...", foreground='orange')
-            self.root.update()
-
-            self.generated_ips = self.generate_ip_pool(ip_subnet)
-            self.gateway = gateway
-
-            self.result_text.delete('1.0', tk.END)
-
-            info_text = f"Total IPs Generated: {len(self.generated_ips)}"
-            if gateway:
-                info_text += f" | Gateway: {gateway}"
-            info_text += f" | Subnet: {ip_subnet}"
-            self.info_label.config(text=info_text)
-
-            for ip in self.generated_ips:
-                self.result_text.insert(tk.END, ip + '\n')
-
-            self.export_btn.config(state=tk.NORMAL)
-            self.status_label.config(
-                text=f"Generated {len(self.generated_ips)} IPs successfully",
-                foreground='green'
-            )
-
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred: {str(e)}")
-            self.status_label.config(text="Error occurred", foreground='red')
-
-    def export_csv(self):
-        if not self.generated_ips:
-            messagebox.showwarning("No Data", "No IPs to export. Please generate IPs first.")
-            return
-
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-            initialfile="ip_pool.csv"
-        )
-
-        if file_path:
-            try:
-                ip_subnet = self.ip_subnet_entry.get().strip()
-                _, subnet = ip_subnet.split('/')
-                subnet_mask = self.cidr_to_mask(subnet)
-
-                # Skip gateway (first usable IP)
-                ip_list = self.generated_ips[1:] if len(self.generated_ips) > 1 else []
-
-                with open(file_path, 'w', newline='') as csvfile:
-                    writer = csv.writer(csvfile)
-                    for ip in ip_list:
-                        writer.writerow([ip, self.gateway, subnet_mask])
-
-                messagebox.showinfo("Export Successful", f"IP pool exported successfully to:\n{file_path}")
-                self.status_label.config(
-                    text=f"Exported {len(ip_list)} IPs to CSV", foreground='green'
-                )
-            except Exception as e:
-                messagebox.showerror("Export Error", f"Failed to export CSV: {str(e)}")
-                self.status_label.config(text="Export failed", foreground='red')
-
-    def clear_results(self):
-        self.result_text.delete('1.0', tk.END)
-        self.generated_ips = []
-        self.gateway = ""
-        self.info_label.config(text="")
-        self.export_btn.config(state=tk.DISABLED)
-        self.status_label.config(text="Cleared", foreground='green')
-
-
-def main():
-    root = tk.Tk()
-    app = IPPoolGenerator(root)
-    root.mainloop()
-
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Pool Generator - SF - NOC</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            margin-top: 15px;
+        }
+        
+        .btn-secondary:hover {
+            box-shadow: 0 5px 20px rgba(40, 167, 69, 0.4);
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #f5c6cb;
+        }
+        
+        .results {
+            margin-top: 40px;
+            border-top: 2px solid #e0e0e0;
+            padding-top: 30px;
+        }
+        
+        .results-header {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .results-header h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .results-info {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .info-item {
+            font-size: 1em;
+        }
+        
+        .info-item strong {
+            color: #667eea;
+        }
+        
+        .ip-list {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .ip-item {
+            padding: 8px 12px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 5px;
+            border-left: 3px solid #667eea;
+        }
+        
+        .ip-list::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        .ip-list::-webkit-scrollbar-track {
+            background: #e0e0e0;
+            border-radius: 10px;
+        }
+        
+        .ip-list::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>IP Pool Generator - SF - NOC</h1>
+            <p>Generate IP address pools from CIDR notation</p>
+        </div>
+        
+        <div class="content">
+            {% if error %}
+            <div class="error">
+                {{ error }}
+            </div>
+            {% endif %}
+            
+            <form method="POST">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ip_subnet">IP/Subnet:</label>
+                        <input type="text" 
+                               id="ip_subnet" 
+                               name="ip_subnet" 
+                               placeholder="192.168.1.0/22" 
+                               value="{{ ip_subnet or '192.168.1.0/22' }}" 
+                               required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="gateway">Gateway:</label>
+                        <input type="text" 
+                               id="gateway" 
+                               name="gateway" 
+                               placeholder="192.168.1.1" 
+                               value="{{ gateway or '192.168.1.1' }}">
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn">Generate IP Pool</button>
+            </form>
+            
+            {% if ips %}
+            <div class="results">
+                <div class="results-header">
+                    <h2>Generated IP Addresses</h2>
+                    <div class="results-info">
+                        <div class="info-item">
+                            <strong>Total IPs:</strong> {{ total_ips }}
+                        </div>
+                        <div class="info-item">
+                            <strong>Subnet:</strong> {{ ip_subnet }}
+                        </div>
+                        {% if gateway %}
+                        <div class="info-item">
+                            <strong>Gateway:</strong> {{ gateway }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <a href="/download?ip_subnet={{ ip_subnet }}&gateway={{ gateway }}" class="btn btn-secondary" style="text-decoration: none; display: inline-block; text-align: center;">
+                    📥 Download CSV
+                </a>
+                
+                <div class="ip-list">
+                    {% for ip in ips %}
+                    <div class="ip-item">{{ ip }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

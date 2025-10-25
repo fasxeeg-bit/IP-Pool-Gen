@@ -1,6 +1,9 @@
-name: Build Windows EXE
+name: Build IP Pool Generator EXE
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -8,30 +11,26 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install flask pyinstaller
+          pip install -r requirements.txt
 
-      - name: Build EXE (no templates/static)
+      - name: Build EXE
         run: |
           echo Building EXE...
-          pyinstaller --onefile --noconsole app.py
-          echo Build done.
+          pyinstaller --onefile --noconsole ip_pool_generator_desktop.py
+          echo Build complete.
 
-      - name: Show dist folder (debug)
-        run: dir dist
-
-      - name: Upload EXE artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload EXE
+        uses: actions/upload-artifact@v3
         with:
-          name: IPPoolApp
-          path: dist/*.exe
+          name: IPPoolGenerator
+          path: dist/ip_pool_generator_desktop.exe

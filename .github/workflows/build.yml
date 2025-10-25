@@ -30,7 +30,7 @@ jobs:
           echo Build complete.
 
       - name: Upload EXE
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: IPPoolGenerator
           path: dist/ip_pool_generator_desktop.exe

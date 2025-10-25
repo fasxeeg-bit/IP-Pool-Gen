@@ -1,9 +1,8 @@
-name: Build IP Pool Generator EXE
+name: Build IP Pool Generator Apps
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -12,25 +11,36 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          pip install flask pyinstaller
 
-      - name: Build EXE
+      - name: Build Flask Web App EXE
         run: |
-          echo Building EXE...
-          pyinstaller --onefile --noconsole ip_pool_generator_desktop.py
-          echo Build complete.
+          echo Building Flask Web Server...
+          pyinstaller --onefile --noconsole ^
+            --add-data "templates;templates" ^
+            --add-data "IP_pool_generator.py;." ^
+            --name "IP_Pool_WebApp" app.py
 
-      - name: Upload EXE
+      - name: Build Tkinter Desktop EXE
+        run: |
+          echo Building Tkinter Desktop App...
+          pyinstaller --onefile --noconsole ^
+            --name "IP_Pool_Desktop" IP_Pool_Generator.py
+
+      - name: Upload Built EXEs
         uses: actions/upload-artifact@v4
         with:
-          name: IPPoolGenerator
-          path: dist/ip_pool_generator_desktop.exe
+          name: IP_Pool_Generator_Apps
+          path: |
+            dist/IP_Pool_WebApp.exe
+            dist/IP_Pool_Desktop.exe

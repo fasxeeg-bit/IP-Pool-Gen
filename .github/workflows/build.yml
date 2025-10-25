@@ -18,8 +18,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt || echo "no requirements.txt found"
-          pip install pyinstaller flask
+          pip install flask pyinstaller
 
       - name: Build EXE
         run: |

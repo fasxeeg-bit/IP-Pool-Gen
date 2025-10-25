@@ -3,3 +3,4 @@ pywebview>=4.0   # optional if you used webview; not required for browser approa
 tk
 pyinstaller
 flask
+ipaddress

@@ -1,91 +1,38 @@
-from flask import Flask, request, render_template, Response
-import io
-import csv
+# app.py
+import os
+import sys
+from flask import Flask, render_template, send_from_directory
+import webbrowser
+from threading import Timer
 
-app = Flask(__name__)
+# if using templates/static, Flask default works, but when frozen by PyInstaller
+# templates/static live inside temporary folder sys._MEIPASS. We handle that:
 
+if getattr(sys, "frozen", False):
+    # running as compiled exe
+    base_path = sys._MEIPASS
+else:
+    base_path = os.path.abspath(".")
 
-def cidr_to_subnet_mask(cidr):
-    cidr = int(cidr)
-    mask = (0xffffffff >> (32 - cidr)) << (32 - cidr)
-    return f"{(mask >> 24) & 255}.{(mask >> 16) & 255}.{(mask >> 8) & 255}.{mask & 255}"
+template_folder = os.path.join(base_path, "templates")
+static_folder = os.path.join(base_path, "static")
 
+app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
 
-def generate_ip_pool(ip_subnet, gateway=None):
-    try:
-        ip, subnet = ip_subnet.split('/')
-        subnet = int(subnet)
-        
-        parts = list(map(int, ip.split('.')))
-        ip_int = (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3]
-        
-        total = 2 ** (32 - subnet)
-        
-        ips = []
-        for i in range(1, total - 1):
-            v = ip_int + i
-            generated_ip = f"{(v >> 24) & 255}.{(v >> 16) & 255}.{(v >> 8) & 255}.{v & 255}"
-            
-            if gateway and generated_ip == gateway:
-                continue
-            
-            ips.append(generated_ip)
-        
-        return ips
-    except Exception as e:
-        raise ValueError(f"Error generating IPs: {str(e)}")
-
-
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def index():
-    if request.method == 'POST':
-        ip_subnet = request.form.get('ip_subnet', '').strip()
-        gateway = request.form.get('gateway', '').strip()
-        
-        try:
-            ips = generate_ip_pool(ip_subnet, gateway)
-            return render_template('index.html', 
-                                 ips=ips, 
-                                 ip_subnet=ip_subnet, 
-                                 gateway=gateway,
-                                 total_ips=len(ips))
-        except Exception as e:
-            error = f"Error: {str(e)}"
-            return render_template('index.html', error=error)
-    
-    return render_template('index.html')
+    # render template (make sure templates/index.html exists)
+    return render_template("index.html")
 
+# example static route (optional)
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory(static_folder, filename)
 
-@app.route('/download')
-def download():
-    ip_subnet = request.args.get('ip_subnet', '')
-    gateway = request.args.get('gateway', '')
-    
-    if not ip_subnet:
-        return "No IP/Subnet provided", 400
-    
-    try:
-        ip, subnet_cidr = ip_subnet.split('/')
-        subnet_mask = cidr_to_subnet_mask(subnet_cidr)
-        
-        ips = generate_ip_pool(ip_subnet, gateway)
-        
-        output = io.StringIO()
-        writer = csv.writer(output, lineterminator="\n")
-        
-        for ip in ips:
-            writer.writerow([ip, gateway, subnet_mask])
-        
-        output.seek(0)
-        
-        return Response(
-            output.getvalue(),
-            mimetype='text/csv',
-            headers={"Content-Disposition": "attachment; filename=ip_pool.csv"}
-        )
-    except Exception as e:
-        return f"Error generating CSV: {str(e)}", 400
+def open_browser():
+    webbrowser.open("http://127.0.0.1:5000")
 
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+if __name__ == "__main__":
+    # open browser after 1 second (gives flask time to start)
+    Timer(1, open_browser).start()
+    app.run(host="127.0.0.1", port=5000)

@@ -100,6 +100,11 @@ class IPPoolGenerator:
         except ValueError:
             return False
 
+    def cidr_to_mask(self, cidr):
+        """Convert CIDR (e.g., /22) to subnet mask (e.g., 255.255.252.0)"""
+        mask = (0xffffffff >> (32 - int(cidr))) << (32 - int(cidr))
+        return f"{(mask >> 24) & 255}.{(mask >> 16) & 255}.{(mask >> 8) & 255}.{mask & 255}"
+
     def generate_ip_pool(self, ip_subnet):
         try:
             ip, subnet = ip_subnet.split('/')
@@ -183,9 +188,9 @@ class IPPoolGenerator:
             try:
                 ip_subnet = self.ip_subnet_entry.get().strip()
                 _, subnet = ip_subnet.split('/')
-                subnet_mask = subnet.strip()
+                subnet_mask = self.cidr_to_mask(subnet)
 
-                # Skip first usable IP (gateway)
+                # Skip gateway (first usable IP)
                 ip_list = self.generated_ips[1:] if len(self.generated_ips) > 1 else []
 
                 with open(file_path, 'w', newline='') as csvfile:
